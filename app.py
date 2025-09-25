@@ -72,6 +72,89 @@ def test_db():
         return f"❌ Error de conexión: {str(e)}"
 
 # -----------------------------
+# Ruta de Movimientos (CRUD Productos)
+# -----------------------------
+@app.route("/movimiento", methods=["GET", "POST"])
+def movimientos():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Crear producto
+    if request.method == "POST":
+        nombre = request.form["nombre"]
+        precio = request.form["precio"]
+        stock = request.form["stock"]
+
+        try:
+            cursor.execute(
+                "INSERT INTO productos (nombre, precio, stock) VALUES (%s, %s, %s)",
+                (nombre, precio, stock)
+            )
+            conn.commit()
+            flash("Producto agregado correctamente", "success")
+        except Exception as e:
+            flash(f"Error al agregar producto: {str(e)}", "danger")
+
+    # Leer productos
+    cursor.execute("SELECT * FROM productos")
+    productos = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template("movimiento.html", productos=productos)
+
+# -----------------------------
+# Ruta para editar producto
+# -----------------------------
+@app.route("/editar/<int:id_producto>", methods=["GET", "POST"])
+def editar_producto(id_producto):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    if request.method == "POST":
+        nombre = request.form["nombre"]
+        precio = request.form["precio"]
+        stock = request.form["stock"]
+
+        try:
+            cursor.execute(
+                "UPDATE productos SET nombre=%s, precio=%s, stock=%s WHERE id_producto=%s",
+                (nombre, precio, stock, id_producto)
+            )
+            conn.commit()
+            flash("Producto actualizado correctamente", "success")
+            cursor.close()
+            conn.close()
+            return redirect(url_for("movimientos"))
+        except Exception as e:
+            flash(f"Error al actualizar producto: {str(e)}", "danger")
+
+    # Obtener datos actuales del producto
+    cursor.execute("SELECT * FROM productos WHERE id_producto=%s", (id_producto,))
+    producto = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    return render_template("editar_producto.html", producto=producto)
+
+# -----------------------------
+# Ruta para eliminar producto
+# -----------------------------
+@app.route("/eliminar/<int:id_producto>")
+def eliminar_producto(id_producto):
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM productos WHERE id_producto=%s", (id_producto,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        flash("Producto eliminado correctamente", "success")
+    except Exception as e:
+        flash(f"Error al eliminar producto: {str(e)}", "danger")
+    return redirect(url_for("movimientos"))
+
+# -----------------------------
 # Ejecutar la aplicación
 # -----------------------------
 if __name__ == "__main__":

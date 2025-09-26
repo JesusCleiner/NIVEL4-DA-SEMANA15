@@ -75,7 +75,7 @@ def test_db():
 # Ruta de Movimientos (CRUD Productos)
 # -----------------------------
 @app.route("/movimiento", methods=["GET", "POST"])
-def movimientos():
+def movimiento():
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 

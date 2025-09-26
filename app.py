@@ -1,9 +1,44 @@
+import os
+import sqlite3
 from flask import Flask, render_template, request, redirect, url_for, flash
-from conexion.conexion import get_connection
-import bcrypt
+from dotenv import load_dotenv
+
+# -----------------------------
+# Cargar variables de entorno
+# -----------------------------
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = "clave_secreta_flask"  # Necesaria para mensajes flash
+app.secret_key = os.getenv("SECRET_KEY", "clave_secreta_flask")
+DB_FILE = os.getenv("DB_FILE", "desarrollo_web.db")
+
+# -----------------------------
+# Función para conectar a SQLite
+# -----------------------------
+def get_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row  # Para acceder a columnas por nombre
+    return conn
+
+# -----------------------------
+# Crear tabla productos si no existe
+# -----------------------------
+def crear_tabla():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS productos (
+            id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            precio REAL NOT NULL,
+            stock INTEGER NOT NULL
+        )
+    """)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+crear_tabla()  # Crear tabla al iniciar
 
 # -----------------------------
 # Ruta de Inicio
@@ -27,57 +62,12 @@ def contacto():
     return render_template("contacto.html")
 
 # -----------------------------
-# Ruta de Login
-# -----------------------------
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "POST":
-        email = request.form["email"]
-        password = request.form["password"]
-
-        # Conectar a la base de datos
-        conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM usuarios WHERE email = %s", (email,))
-        usuario = cursor.fetchone()
-        cursor.close()
-        conn.close()
-
-        if usuario:
-            # Verificar contraseña hasheada
-            if bcrypt.checkpw(password.encode('utf-8'), usuario["password"].encode('utf-8')):
-                flash(f"Bienvenido {usuario['nombre']}!", "success")
-                return redirect(url_for("inicio"))
-            else:
-                flash("Contraseña incorrecta", "danger")
-        else:
-            flash("Usuario no encontrado", "danger")
-
-    return render_template("login.html")
-
-# -----------------------------
-# Ruta para probar la conexión con la base de datos
-# -----------------------------
-@app.route("/test_db")
-def test_db():
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT DATABASE();")
-        db_name = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        return f"✅ Conectado a la base de datos: {db_name[0]}"
-    except Exception as e:
-        return f"❌ Error de conexión: {str(e)}"
-
-# -----------------------------
 # Ruta de Movimientos (CRUD Productos)
 # -----------------------------
 @app.route("/movimiento", methods=["GET", "POST"])
 def movimiento():
     conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
 
     # Crear producto
     if request.method == "POST":
@@ -87,7 +77,7 @@ def movimiento():
 
         try:
             cursor.execute(
-                "INSERT INTO productos (nombre, precio, stock) VALUES (%s, %s, %s)",
+                "INSERT INTO productos (nombre, precio, stock) VALUES (?, ?, ?)",
                 (nombre, precio, stock)
             )
             conn.commit()
@@ -109,7 +99,7 @@ def movimiento():
 @app.route("/editar/<int:id_producto>", methods=["GET", "POST"])
 def editar_producto(id_producto):
     conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
 
     if request.method == "POST":
         nombre = request.form["nombre"]
@@ -118,19 +108,19 @@ def editar_producto(id_producto):
 
         try:
             cursor.execute(
-                "UPDATE productos SET nombre=%s, precio=%s, stock=%s WHERE id_producto=%s",
+                "UPDATE productos SET nombre=?, precio=?, stock=? WHERE id_producto=?",
                 (nombre, precio, stock, id_producto)
             )
             conn.commit()
             flash("Producto actualizado correctamente", "success")
             cursor.close()
             conn.close()
-            return redirect(url_for("movimientos"))
+            return redirect(url_for("movimiento"))
         except Exception as e:
             flash(f"Error al actualizar producto: {str(e)}", "danger")
 
     # Obtener datos actuales del producto
-    cursor.execute("SELECT * FROM productos WHERE id_producto=%s", (id_producto,))
+    cursor.execute("SELECT * FROM productos WHERE id_producto=?", (id_producto,))
     producto = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -145,17 +135,18 @@ def eliminar_producto(id_producto):
     try:
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM productos WHERE id_producto=%s", (id_producto,))
+        cursor.execute("DELETE FROM productos WHERE id_producto=?", (id_producto,))
         conn.commit()
         cursor.close()
         conn.close()
         flash("Producto eliminado correctamente", "success")
     except Exception as e:
         flash(f"Error al eliminar producto: {str(e)}", "danger")
-    return redirect(url_for("movimientos"))
+    return redirect(url_for("movimiento"))
 
 # -----------------------------
 # Ejecutar la aplicación
 # -----------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)

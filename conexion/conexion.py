@@ -1,16 +1,10 @@
+import sqlite3
+from flask import g
 import os
-import mysql.connector
-from dotenv import load_dotenv
 
-# Cargar variables de entorno
-load_dotenv()
+DB_FILE = os.getenv("DB_FILE", "desarrollo_web.db")
 
 def get_connection():
-    connection = mysql.connector.connect(
-        host=os.getenv("DB_HOST"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        database=os.getenv("DB_NAME")
-        
-    )
-    return connection 
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
